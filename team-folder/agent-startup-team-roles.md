@@ -43,6 +43,9 @@ Source of truth: `notes-app-proposal.md` + task cards `task-01`–`task-04` (v1)
 discovery (@product-discovery) → architecture (@system-architect) → tasks (@project-manager) → code (@code-runner via Cline) → QA (@qa-safety) → CI/CD (@devops-bot).
 
 ## v1 status
-- 35/35 tests pass; aggregate 82% branch; `models.py` 75% and `storage.py` 77% below 80% floor (task-05/06 open).
-- Staging deploy gated until both files ≥80% branch.
-- v2 direction: simple web app (user pivot) + tag hygiene + concurrency-safe store + sync/export (per @product-discovery).
+- v1 push complete (50 tests, models 95% / storage 83% branch, CI on `--cov-branch`). Staging deploy + Discord post done.
+## v2 Context (web pivot)
+
+- v2 source of truth: `notes-app-proposal-v2.md` + `TRD-v2-web.md` + `tasks/task-07`–`task-11`.
+- v2 scope: stdlib-only web app (ThreadingHTTPServer, port 8000/NOTES_PORT, bind 127.0.0.1), REST + server-rendered HTML/vanilla JS, no build step.
+- All seven roles unchanged; v2 task cards under `tasks/`. v1 push complete.

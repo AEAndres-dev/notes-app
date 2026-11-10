@@ -30,3 +30,10 @@ Guardrail against scope creep, AI hallucination, and bloated specifications. I t
 - Task cards: `task-01-models.md` → `task-04-cli.md` (run in order).
 - Scope boundaries: `src/*.py`, `tests/*`, `data/notes.json` only. No network, auth, DB drivers, GUI/web, or config beyond `notes.json`.
 - Pipeline: discovery → architecture → tasks → code → @qa-safety review → @devops-bot CI/CD.
+## v2 Context (web pivot)
+
+- v2 source of truth: `notes-app-proposal-v2.md` + `TRD-v2-web.md` + `tasks/task-07`–`task-11`.
+- Scope predicate updated for v2: allowed paths now include `src/server.py`, `src/__init__.py`, `static/*`, `tests/test_server.py`, `docs/spike-concurrency.md` (plus v1 paths). DO NOT-touch: `src/models.py` internals, no new deps, no auth, no DB drivers, no config beyond `notes.json`.
+- Task cards (task-07..11) cut and organized under `tasks/`. Execution order: 07 → 08/09 → 10, with 11 parallel.
+- CI gate unchanged: scope-check → stdlib-only import (src/) → pytest --cov-branch → staging deploy; coverage floor ≥80% branch on src/.
+- v1 push complete (50 tests, models 95% / storage 83% branch).
