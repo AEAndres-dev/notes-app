@@ -45,3 +45,10 @@ error traces, and stand up staging deployments.
   review all agree.
 - When Cline generates code, I keep the CI config pointing at the real file paths
   from the task cards, so nothing is guessed at merge time.
+
+## v2 Context (web pivot)
+
+- v2 source of truth: `notes-app-proposal-v2.md` + `TRD-v2-web.md` + `tasks/task-07`–`task-11`.
+- CI gate order unchanged: scope-check → stdlib-only import (src/) → pytest --cov-branch → staging deploy.
+- v2 staging: serve `python -m src.server` on port 8000 (env `NOTES_PORT`); post URL to Discord.
+- v1 push complete (50 tests, models 95% / storage 83% branch, CI on `--cov-branch`).

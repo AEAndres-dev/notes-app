@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notes App</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Notes</h1>
+      <p class="subtitle">Simple, local, searchable notes</p>
+    </header>
+
+    <section class="toolbar">
+      <input type="text" id="searchInput" placeholder="Search notes..." aria-label="Search">
+      <input type="text" id="tagFilter" placeholder="Filter by tag..." aria-label="Filter by tag">
+    </section>
+
+    <section class="card add-card">
+      <h2>Add Note</h2>
+      <form id="addForm">
+        <div class="field">
+          <label for="titleInput">Title</label>
+          <input type="text" id="titleInput" name="title" required maxlength="200">
+        </div>
+        <div class="field">
+          <label for="bodyInput">Body</label>
+          <textarea id="bodyInput" name="body" rows="3" required maxlength="10000"></textarea>
+        </div>
+        <div class="field">
+          <label for="tagsInput">Tags (comma-separated)</label>
+          <input type="text" id="tagsInput" name="tags" placeholder="work, personal">
+        </div>
+        <button type="submit" class="btn btn-primary">Add Note</button>
+      </form>
+      <p id="formError" class="error-msg"></p>
+    </section>
+
+    <section id="emptyState" class="card empty-state hidden">
+      <p>No notes found</p>
+    </section>
+
+    <section id="notesList" class="notes-list">
+      <!-- notes rendered here by app.js -->
+    </section>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

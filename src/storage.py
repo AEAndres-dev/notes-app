@@ -56,7 +56,9 @@ def load_notes(path=DEFAULT_PATH):
     notes = []
     for item in data:
         try:
-            notes.append(Note.from_dict(item))
+            note = Note.from_dict(item)
+            note.tags = _coerce_tags(note.tags)
+            notes.append(note)
         except ValueError as exc:
             raise ValueError("Malformed note entry: %s" % exc)
     return notes

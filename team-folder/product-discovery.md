@@ -57,3 +57,10 @@ discovery (me) → architecture (@system-architect) → tasks (@project-manager)
 
 ### Task Cards
 `C:\Users\dev\notes-app-tasks\task-01-models.md` through `task-04-cli.md` — self-contained, one per module, dependencies mapped.
+
+## v2 Context (web pivot)
+
+- v2 source of truth: `notes-app-proposal-v2.md` + `TRD-v2-web.md` + `tasks/task-07`–`task-11`.
+- v2 product directions: A (tag hygiene as designed contract) + C (sync/export) first; B (concurrency-safe store) as flagship; D (richer content) deferred.
+- v2 web-pivot criteria W1–W5 in `team-handoff/product-discovery-v2-stories.md`.
+- v1 push complete (50 tests, models 95% / storage 83% branch).
