@@ -113,6 +113,12 @@ def _validate_note_payload(data, partial=False):
     if "tags" in data:
         cleaned["tags"] = storage._coerce_tags(data["tags"])
 
+    if "due_date" in data:
+        due_date = data["due_date"]
+        if due_date is not None and not isinstance(due_date, str):
+            return None, 400
+        cleaned["due_date"] = due_date
+
     return cleaned, 200
 
 

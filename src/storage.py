@@ -1,7 +1,9 @@
 """Storage layer for notes.json."""
 
+import functools
 import json
 import os
+import threading
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -10,6 +12,37 @@ from .models import Note
 
 
 DEFAULT_PATH = "data/notes.json"
+
+_RLOCK = threading.RLock()
+
+
+def _synchronized(func):
+    """Module-level re-entrant lock that guards the load -> mutate -> save paths."""
+    @functools.wraps(func)
+    def _wrapper(*args, **kwargs):
+        with _RLOCK:
+            return func(*args, **kwargs)
+    return _wrapper
+
+
+CURRENT_SCHEMA_VERSION = 2
+
+
+def _migrate_note(item):
+    """Upgrade a persisted note to the current schema (idempotent, data-loss-free).
+
+    v1 (schema_version absent) -> v2 by setting schema_version on the Note.
+    Identical versions load as-is; future versions (> current) are rejected
+    as read-only so they can never be silently overwritten.
+    """
+    if not isinstance(item, dict):
+        raise ValueError("Malformed note entry")
+    version = item.get("schema_version", 1)
+    if version > CURRENT_SCHEMA_VERSION:
+        raise ValueError("Future schema version %s; store is read-only" % version)
+    note = Note.from_dict(item)
+    note.schema_version = CURRENT_SCHEMA_VERSION
+    return note
 
 
 def _now():
@@ -56,7 +89,7 @@ def load_notes(path=DEFAULT_PATH):
     notes = []
     for item in data:
         try:
-            note = Note.from_dict(item)
+            note = _migrate_note(item)
             note.tags = _coerce_tags(note.tags)
             notes.append(note)
         except ValueError as exc:
@@ -113,7 +146,7 @@ def _resolve_path_arg(path, args, kwargs):
     return resolved
 
 
-def add_note(title, body, tags=None, *args, path=None, **kwargs):
+def add_note(title, body, tags=None, *args, path=None, due_date=None, **kwargs):
     resolved_path = _resolve_path_arg(path, args, kwargs)
     if "tags" in kwargs and tags is None:
         tags = kwargs.pop("tags")
@@ -125,13 +158,16 @@ def add_note(title, body, tags=None, *args, path=None, **kwargs):
         tags=coerced,
         created_at=_now(),
         updated_at=_now(),
+        due_date=due_date,
     )
+    note.schema_version = CURRENT_SCHEMA_VERSION
     notes = load_notes(resolved_path)
     notes.append(note)
     save_notes(notes, resolved_path)
     return note
 
 
+@_synchronized
 def delete_note(note_id, *args, path=None, **kwargs):
     resolved_path = _resolve_path_arg(path, args, kwargs)
     notes = load_notes(resolved_path)
@@ -142,6 +178,7 @@ def delete_note(note_id, *args, path=None, **kwargs):
     return True
 
 
+@_synchronized
 def edit_note(note_id, *args, path=None, **fields):
     updates = {}
     resolved_path = path
@@ -168,6 +205,11 @@ def edit_note(note_id, *args, path=None, **fields):
                 note.body = updates["body"]
             if "tags" in updates:
                 note.tags = _coerce_tags(updates["tags"])
+            if "due_date" in updates:
+                due_date = updates["due_date"]
+                if due_date is not None and not isinstance(due_date, str):
+                    raise ValueError("due_date must be a string or None")
+                note.due_date = due_date
             note.updated_at = _now()
             save_notes(notes, resolved_path)
             return note

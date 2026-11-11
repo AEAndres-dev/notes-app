@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Notes App</title>
+  <title>Notes App — Calm Garden</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -14,37 +14,57 @@
     </header>
 
     <section class="toolbar">
-      <input type="text" id="searchInput" placeholder="Search notes..." aria-label="Search">
+      <input type="text" id="searchInput" placeholder="Search notes..." aria-label="Search" aria-autocomplete="list">
       <input type="text" id="tagFilter" placeholder="Filter by tag..." aria-label="Filter by tag">
+      <button id="themeToggle" class="btn btn-icon" aria-label="Toggle theme" aria-pressed="false"></button>
     </section>
 
-    <section class="card add-card">
-      <h2>Add Note</h2>
-      <form id="addForm">
-        <div class="field">
-          <label for="titleInput">Title</label>
-          <input type="text" id="titleInput" name="title" required maxlength="200">
+    <!-- Autocomplete suggestions: dynamically rendered, placed after toolbar -->
+    <div id="acContainer" style="display:none; position:absolute; top:100%; left:0; margin-top:4px; z-index:1000;">
+      <div id="acDropdown" role="listbox" aria-label="Suggestions" hidden></div>
+      <p id="acEmpty" hidden style="padding:8px 12px; color:var(--muted);">No matches — try a different term</p>
+    </div>
+
+    <div class="split-pane" id="splitPane">
+      <section id="notesList" class="notes-list pane list-pane">
+        <!-- notes rendered here by app.js -->
+        <div class="empty-placeholder" id="listEmptyPlaceholder">
+          <p>No notes found</p>
         </div>
-        <div class="field">
-          <label for="bodyInput">Body</label>
-          <textarea id="bodyInput" name="body" rows="3" required maxlength="10000"></textarea>
-        </div>
-        <div class="field">
-          <label for="tagsInput">Tags (comma-separated)</label>
-          <input type="text" id="tagsInput" name="tags" placeholder="work, personal">
-        </div>
-        <button type="submit" class="btn btn-primary">Add Note</button>
-      </form>
-      <p id="formError" class="error-msg"></p>
-    </section>
+      </section>
+
+      <div class="divider" id="divider" role="separator" aria-label="Resize panes" aria-valuenow="50" aria-valuemin="20" aria-valuemax="80" tabindex="0"></div>
+
+      <section id="editor" class="pane editor-pane hidden">
+        <button id="closeEditor" class="btn btn-icon" aria-label="Close editor">&times;</button>
+        <form id="editorForm">
+          <input type="hidden" id="editorNoteId">
+          <div class="field">
+            <label for="editorTitle">Title</label>
+            <input type="text" id="editorTitle" name="title" required maxlength="200" autofocus>
+          </div>
+          <div class="field">
+            <label for="editorBody">Body</label>
+            <textarea id="editorBody" name="body" rows="6" required maxlength="10000"></textarea>
+          </div>
+          <div class="field">
+            <label for="editorTags">Tags (comma-separated)</label>
+            <input type="text" id="editorTags" name="tags" placeholder="work, personal">
+          </div>
+          <div class="edit-actions">
+            <button type="button" class="btn btn-cancel" id="editorCancel">Cancel</button>
+            <button type="submit" class="btn btn-save" id="editorSave">Save Note</button>
+          </div>
+          <p id="editorError" class="error-msg"></p>
+        </form>
+      </section>
+    </div>
 
     <section id="emptyState" class="card empty-state hidden">
       <p>No notes found</p>
     </section>
 
-    <section id="notesList" class="notes-list">
-      <!-- notes rendered here by app.js -->
-    </section>
+    <button id="addFab" class="fab" aria-label="Add new note">+</button>
   </div>
   <script src="/static/app.js"></script>
 </body>

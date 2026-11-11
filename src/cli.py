@@ -14,7 +14,8 @@ def _fmt_tags(tags):
 
 
 def _print_note(note):
-    print("%s | %s | %s" % (note.id, note.title, _fmt_tags(note.tags)))
+    due = " [due: %s]" % note.due_date if note.due_date else ""
+    print("%s | %s | %s%s" % (note.id, note.title, _fmt_tags(note.tags), due))
 
 
 def cmd_add(args):

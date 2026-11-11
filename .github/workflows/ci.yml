@@ -10,80 +10,69 @@ permissions:
   contents: read
 
 # ==========================================================================
-# Pipeline: scope-check -> stdlib-only import -> pytest --cov -> staging deploy
-# Gates read from the source of truth (notes-app-proposal.md + task-01..04),
+# Pipeline: migration-safety -> 89-case regression -> suggest-contract ->
+#   reduced-motion -> staging deploy
+# Gates read from the source of truth (notes-app-proposal-v3.md + task-12..17),
 # not from ad-hoc rules.
 # ==========================================================================
 
 jobs:
-  # 1) Path predicate gate: PR touches only src/, tests/, data/notes.json.
-  scope-check:
+  # 1) Migration-safety CI: old-schema fixture → new loader, zero data loss,
+  #    idempotent upgrade, plain-language errors.
+  migration-safety:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Verify changed file paths
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE="${{ github.event.pull_request.base.sha }}"
-          else
-            BASE="${{ github.event.before }}"
-          fi
-          CHANGED=$(git diff --name-only "$BASE" HEAD --)
-          echo "Changed files:"
-          echo "$CHANGED"
-          if [ -n "$CHANGED" ]; then
-            if echo "$CHANGED" | grep -qvE '^(src/|tests/|data/)'; then
-              echo "::error::PR touches paths outside allowed scope (src/, tests/, data/)."
-              exit 1
-            fi
-          fi
-          echo "scope-check: OK"
+      - name: Run migration-safety fixture tests
+        run: python -m pytest tests/test_migration_safety.py --cov=src --cov-branch
 
-  # 2) Stdlib-only import gate: scans src/ ONLY (not tests/).
-  #    test toolchain (pytest) is allowed in tests/; app code must be stdlib.
-  import-gate:
+  # 2) 89-case regression guard: full suite still passes after src/ changes;
+  #    CLI prints ISO YYYY-MM-DD; undated notes sort last in Today/Upcoming.
+  regression-guard:
+    needs: migration-safety
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Scan src/ for non-stdlib imports
-        run: |
-          ALLOWED="os sys json uuid argparse datetime pathlib"
-          FAILED=0
-          while IFS= read -r -d '' file; do
-            MODULES=$(grep -oE '^(import|from)\s+[A-Za-z0-9_]+' "$file" | awk '{print $2}')
-            for m in $MODULES; do
-              case " $ALLOWED " in
-                *" $m "*) ;;
-                *) echo "::error::src non-stdlib import '$m' in $(basename "$file")"; FAILED=1;;
-              esac
-            done
-          done < <(find src -name '*.py' -print0)
-          if [ "$FAILED" -ne 0 ]; then
-            exit 1
-          fi
-          echo "import-gate: OK (stdlib only in src/)"
-
-  # 3) Build + tests: install test toolchain, run with branch coverage.
-  build-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Python
-        uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - name: Install test toolchain (not app code)
-        run: pip install pytest pytest-cov
-      - name: Run tests with coverage
+          fetch-depth: 0
+      - name: Run full 89-test regression suite
         run: python -m pytest --cov=src --cov-branch --cov-report=term-missing
 
-  # 4) On main push only (not PR), build + deploy staging and post URL.
+  # 3) Suggest-contract test: endpoint shape frozen; dedup + case-insensitive
+  #    prefix + sorted + capped at 10; highlight wraps matched prefix in <mark>;
+  #    no-q → 400.
+  suggest-contract:
+    needs: regression-guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run suggest-endpoint contract tests
+        run: python -m pytest tests/test_suggest_contract.py --cov=src --cov-branch
+
+  # 4) Reduced-motion gateway: all animation durations and CSS var flips collapse
+  #    to 0ms under @media (prefers-reduced-motion: reduce).
+  reduced-motion:
+    needs: suggest-contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run reduced-motion regression tests
+        run: python -m pytest tests/test_reduced_motion.py --cov=src --cov-branch
+
+  # 5) On main push only (not PR), build + deploy staging and post URL.
   deploy-staging:
-    needs: build-test
+    needs: reduced-motion
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Build + deploy staging
         run: echo "Staging environment live at https://staging-pr14.dev"

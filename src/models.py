@@ -4,7 +4,8 @@
 class Note:
     """A single note."""
 
-    def __init__(self, id, title, body, tags=None, created_at="", updated_at=""):
+    def __init__(self, id, title, body, tags=None, created_at="", updated_at="",
+                 schema_version=1, due_date=None):
         if tags is None:
             tags = []
         self.id = id
@@ -13,6 +14,8 @@ class Note:
         self.tags = list(tags)
         self.created_at = created_at
         self.updated_at = updated_at
+        self.schema_version = schema_version
+        self.due_date = due_date
         self._validate()
 
     def _validate(self):
@@ -28,6 +31,8 @@ class Note:
             raise ValueError("created_at must be a string")
         if not isinstance(self.updated_at, str):
             raise ValueError("updated_at must be a string")
+        if self.due_date is not None and not isinstance(self.due_date, str):
+            raise ValueError("due_date must be a string or None")
 
     def to_dict(self):
         return {
@@ -35,6 +40,8 @@ class Note:
             "title": self.title,
             "body": self.body,
             "tags": list(self.tags),
+            "schema_version": self.schema_version,
+            "due_date": self.due_date,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -61,6 +68,8 @@ class Note:
         updated_at = data.get("updated_at", "")
         if not isinstance(updated_at, str):
             raise ValueError("updated_at must be a string")
+        due_date = data.get("due_date")
+        schema_version = data.get("schema_version", 1)
         return cls(
             id=note_id,
             title=title,
@@ -68,6 +77,8 @@ class Note:
             tags=list(tags),
             created_at=created_at,
             updated_at=updated_at,
+            schema_version=schema_version,
+            due_date=due_date,
         )
 
     def __eq__(self, other):
