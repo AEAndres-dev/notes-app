@@ -5,6 +5,7 @@ Run:  python -m src.server      (port 8000, bind 127.0.0.1)
       NOTES_PORT=9000 python -m src.server
 """
 
+import html
 import json
 import os
 import re
@@ -168,6 +169,10 @@ class NotesHandler(BaseHTTPRequestHandler):
             self._handle_list_notes(query)
             return
 
+        if path == "/api/notes/suggest":
+            self._handle_suggest(query)
+            return
+
         m = re.match(r"^/api/notes/([^/]+)$", path)
         if m:
             self._handle_get_note(m.group(1))
@@ -248,6 +253,54 @@ class NotesHandler(BaseHTTPRequestHandler):
                 _json_response(self, 200, note.to_dict())
                 return
         _error(self, 404, "Note not found")
+
+    def _handle_suggest(self, query):
+        """GET /api/notes/suggest?q=<prefix> -> tag/title suggestions.
+
+        Combined tag names + note titles; dedup case-insensitive;
+        case-insensitive prefix match; sorted; capped at 10; matched
+        prefix wrapped in <mark> with user-controlled content escaped.
+        Missing / empty / whitespace-only q -> 400 JSON error.
+        """
+        q = query.get("q", [None])[0]
+        if q is None or q.strip() == "":
+            _error(self, 400, "query parameter 'q' is required")
+            return
+
+        notes, status = _load_notes_safe()
+        if status == 500:
+            _error(self, 500, "Malformed notes store")
+            return
+
+        prefix = q.strip().lower()
+        suggestions = {}
+        for note in notes:
+            candidates = [(note.title, "title")] + [
+                (t, "tag") for t in (note.tags or [])
+            ]
+            for value, typ in candidates:
+                if not value:
+                    continue
+                key = value.lower()
+                if key not in suggestions and key.startswith(prefix):
+                    suggestions[key] = {"type": typ, "value": value}
+
+        ordered = sorted(
+            suggestions.values(),
+            key=lambda s: (s["value"].lower(), s["value"], s["type"]),
+        )[:10]
+
+        out = []
+        for s in ordered:
+            value = s["value"]
+            matched = value[: len(prefix)]
+            rest = value[len(prefix) :]
+            highlight = (
+                "<mark>" + html.escape(matched) + "</mark>" + html.escape(rest)
+            )
+            out.append({"type": s["type"], "value": value, "highlight": highlight})
+
+        _json_response(self, 200, {"suggestions": out})
 
     # ---- POST ----
 

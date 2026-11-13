@@ -6,4 +6,8 @@ __pycache__/
 scratchpad_tmp.txt
 tests/demo_*.png
 .pytest_cache/
-"
+nul
+push_v2.py
+server_staging.log
+screenshots/
+data/
