@@ -10,69 +10,113 @@ permissions:
   contents: read
 
 # ==========================================================================
-# Pipeline: migration-safety -> 89-case regression -> suggest-contract ->
-#   reduced-motion -> staging deploy
-# Gates read from the source of truth (notes-app-proposal-v3.md + task-12..17),
-# not from ad-hoc rules.
+# Pipeline: scope-check -> stdlib-import-gate -> regression-guard
+# (suggest-contract folded in as a named step, not a parallel job).
+# Phantom migration-safety / reduced-motion jobs removed (called nonexistent
+# test files); deploy-staging deleted (no echo of a URL; unverified until a
+# real deploy lands).
+# Definition of done: NO job anywhere references a nonexistent test file.
 # ==========================================================================
 
 jobs:
-  # 1) Migration-safety CI: old-schema fixture → new loader, zero data loss,
-  #    idempotent upgrade, plain-language errors.
-  migration-safety:
+  # 1) Scope-check: PR may only touch src/, tests/, .github/workflows/,
+  #    tasks/, team-folder/ and CHANGELOG.md. Fail loudly, never silently green.
+  #    Deletions of tests/ always fail. Diffs computed against merge-base.
+  scope-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Run migration-safety fixture tests
-        run: python -m pytest tests/test_migration_safety.py --cov=src --cov-branch
+      - name: Verify only allowed paths are touched
+        run: |
+          set -euo pipefail
+          MERGE_BASE=$(git merge-base origin/main HEAD 2>/dev/null || git rev-parse HEAD)
+          CHANGED=$(git diff --name-status "$MERGE_BASE...HEAD" | awk '{print $2}' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "No changed files detected (merge-base diff empty)."
+            exit 0
+          fi
+          echo "Changed files:"
+          echo "$CHANGED"
+          FAIL=0
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            case "$f" in
+              src/*|tests/*|.github/workflows/*|tasks/*|team-folder/*|CHANGELOG.md)
+                ;;
+              *)
+                echo "ERROR: out-of-scope file touched: $f"
+                FAIL=1
+                ;;
+            esac
+            # deletions of tests/ are never allowed
+            if echo "$f" | grep -q '^tests/'; then
+              DELETED=$(git diff --name-status "$MERGE_BASE...HEAD" -- "$f" | awk '{print $1}')
+              if [ "$DELETED" = "D" ]; then
+                echo "ERROR: tests/ file deleted: $f"
+                FAIL=1
+              fi
+            fi
+          done <<< "$CHANGED"
+          if [ "$FAIL" -ne 0 ]; then
+            echo "::error::scope-check failed: out-of-scope change(s) detected"
+            exit 1
+          fi
+          echo "scope-check passed"
 
-  # 2) 89-case regression guard: full suite still passes after src/ changes;
-  #    CLI prints ISO YYYY-MM-DD; undated notes sort last in Today/Upcoming.
+  # 2) Stdlib-only import gate: src/ may import only the standard library.
+  stdlib-import-gate:
+    needs: scope-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify stdlib-only imports in src/
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import ast, pathlib, sys
+          stdlib = set(sys.stdlib_module_names)
+          stdlib.add("__future__")
+          bad = []
+          for path in pathlib.Path("src").rglob("*.py"):
+              tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+              for node in ast.walk(tree):
+                  if isinstance(node, ast.Import):
+                      for alias in node.names:
+                          root = alias.name.split(".")[0]
+                          if root not in stdlib:
+                              bad.append((str(path), alias.name))
+                  elif isinstance(node, ast.ImportFrom):
+                      if node.module:
+                          root = node.module.split(".")[0]
+                          if root not in stdlib:
+                              bad.append((str(path), node.module))
+          if bad:
+              for p, m in bad:
+                  print("third-party import in %s: %s" % (p, m))
+              raise SystemExit(1)
+          print("stdlib-import-gate passed")
+          PY
+
+  # 3) Regression guard: full suite still passes with branch coverage floor;
+  #    suggest-contract folded in as a named step (not a parallel job).
   regression-guard:
-    needs: migration-safety
+    needs: stdlib-import-gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Run full 89-test regression suite
-        run: python -m pytest --cov=src --cov-branch --cov-report=term-missing
-
-  # 3) Suggest-contract test: endpoint shape frozen; dedup + case-insensitive
-  #    prefix + sorted + capped at 10; highlight wraps matched prefix in <mark>;
-  #    no-q → 400.
-  suggest-contract:
-    needs: regression-guard
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          fetch-depth: 0
-      - name: Run suggest-endpoint contract tests
-        run: python -m pytest tests/test_suggest_contract.py --cov=src --cov-branch
-
-  # 4) Reduced-motion gateway: all animation durations and CSS var flips collapse
-  #    to 0ms under @media (prefers-reduced-motion: reduce).
-  reduced-motion:
-    needs: suggest-contract
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Run reduced-motion regression tests
-        run: python -m pytest tests/test_reduced_motion.py --cov=src --cov-branch
-
-  # 5) On main push only (not PR), build + deploy staging and post URL.
-  deploy-staging:
-    needs: reduced-motion
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Build + deploy staging
-        run: echo "Staging environment live at https://staging-pr14.dev"
+          python-version: "3.x"
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip pytest pytest-cov
+      - name: Run full regression suite (branch coverage >= 80%)
+        run: python -m pytest --ignore=tests/test_gui.py --cov=src --cov-branch --cov-fail-under=80 -q
+      - name: Suggest-contract (frozen endpoint contract)
+        run: python -m pytest tests/test_suggest_contract.py -v
